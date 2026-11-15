@@ -205,8 +205,8 @@ function Archive({s,setS}){
     <text x={x+42} y="168" textAnchor="middle" fontSize="11" fill="#64748b">{l}</text></g>})}
     <rect x="240" y="4" width="8" height="8" fill="#94a3b8"/><text x="252" y="12" fontSize="10" fill="#64748b">{prev.year}</text><rect x="295" y="4" width="8" height="8" fill="#0ea5e9"/><text x="307" y="12" fontSize="10" fill="#64748b">{s.year}</text></svg></>}</div></div>)}
 
-function App(){
- const [s,setS]=useState(load);const [tab,setTab]=useState('dash');const [fx,setFx]=useState(false);const [bk,setBk]=useState(false);const [txt,setTxt]=useState('');
+function App({pin,setPin}){
+ const [s,setS]=useState(load);const [pk,setPk]=useState(false);const [tab,setTab]=useState('dash');const [fx,setFx]=useState(false);const [bk,setBk]=useState(false);const [txt,setTxt]=useState('');
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}},[s]);
  const T=[['dash','Dashboard'],['led','Ledger 가계부'],['arc','Yearly Archive']];
  const imp=()=>{try{const r=JSON.parse(txt);if(!r.accounts||!r.tx||!r.rates)throw 0;setS({...DEF(),...r});setBk(false)}catch(e){alert('Invalid backup JSON')}};
@@ -216,8 +216,10 @@ function App(){
   <div className="ml-auto flex flex-wrap items-center gap-2">
    <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">{CK.map(c=><button key={c} onClick={()=>setS({...s,base:c})} className={'px-2.5 py-1 '+(s.base===c?'bg-sky-600 text-white':'bg-white text-slate-600')}>{c}</button>)}</div>
    <button className={sec} onClick={()=>setFx(true)}>FX Rates</button>
-   <button className={sec} onClick={()=>{setTxt(JSON.stringify(s,null,1));setBk(true)}}>Backup</button></div></div></header>
+   <button className={sec} onClick={()=>{setTxt(JSON.stringify(s,null,1));setBk(true)}}>Backup</button>
+   <button className={sec} onClick={()=>setPk(true)}>{pin?'🔒':'🔓'} PIN</button></div></div></header>
   <main className="mx-auto max-w-6xl p-4">{tab==='dash'?<Dashboard s={s} setS={setS}/>:tab==='led'?<Ledger s={s} setS={setS}/>:<Archive s={s} setS={setS}/>}</main>
+  {pk&&<PinSettings pin={pin} setPin={setPin} onClose={()=>setPk(false)}/>}
   {fx&&<Modal title="Exchange Rates (₩ per 1 unit)" onClose={()=>setFx(false)}><div className="space-y-3">
    {['MYR','USD'].map(c=><Field key={c} l={'1 '+c+' = ₩'}><input type="number" step="any" min="0" className={inp+' n'} value={s.rates[c]} onChange={e=>setS({...s,rates:{...s.rates,[c]:+e.target.value||s.rates[c]}})}/></Field>)}
    <p className="text-xs text-slate-500">Rates are set manually. Transactions keep their native currency; only displays convert.</p></div></Modal>}
@@ -225,5 +227,33 @@ function App(){
    <textarea className={inp+' h-56 font-mono text-xs'} value={txt} onChange={e=>setTxt(e.target.value)}/>
    <div className="mt-3 flex gap-2"><button className={sec+' flex-1'} onClick={()=>{try{navigator.clipboard.writeText(txt)}catch(e){}}}>Copy</button><button className={pri+' flex-1'} onClick={imp}>Import</button></div></Modal>}
  </div>)}
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+const PK='gagyebu-pin';
+async function hp(pin){try{if(crypto.subtle){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('gagyebu:'+pin));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}}catch(e){}return 'p:'+pin}
+function PinSettings({pin,setPin,onClose}){
+ const [c,setC]=useState('');const [n,setN]=useState('');const [n2,setN2]=useState('');const [err,setErr]=useState('');
+ const chk=async()=>!pin||(await hp(c))===pin;
+ const save=async()=>{if(!(await chk()))return setErr('Current PIN is wrong');if(!/^\d{4,8}$/.test(n))return setErr('PIN must be 4–8 digits');if(n!==n2)return setErr("PINs don't match");setPin(await hp(n));onClose()};
+ const rem=async()=>{if(!(await chk()))return setErr('Current PIN is wrong');setPin(null);onClose()};
+ const pw=(v,f)=><input type="password" inputMode="numeric" maxLength="8" className={inp} value={v} onChange={ev=>f(ev.target.value)}/>;
+ return(<Modal title={pin?'Change or remove PIN':'Set a PIN'} onClose={onClose}><div className="space-y-3">
+  {pin&&<Field l="Current PIN">{pw(c,setC)}</Field>}
+  <Field l="New PIN (4–8 digits)">{pw(n,setN)}</Field><Field l="Confirm new PIN">{pw(n2,setN2)}</Field>
+  {err&&<p className="text-sm text-red-600">{err}</p>}
+  <button className={pri+' w-full'} onClick={save}>Save PIN</button>
+  {pin&&<button className={sec+' w-full'} onClick={rem}>Remove PIN</button>}
+  <p className="text-xs text-slate-500">The PIN locks the app screen. If you forget it, the only way in is clearing the app's site data, which erases your budget, so keep a Backup.</p></div></Modal>)}
+function Root(){
+ const [h,setH]=useState(()=>{try{return localStorage.getItem(PK)}catch(e){return null}});
+ const [open,setOpen]=useState(!h);const [p,setP]=useState('');const [bad,setBad]=useState(false);
+ const last=React.useRef(0);
+ useEffect(()=>{const f=()=>{if(document.hidden)last.current=Date.now();else if(h&&Date.now()-last.current>30000)setOpen(false)};document.addEventListener('visibilitychange',f);return()=>document.removeEventListener('visibilitychange',f)},[h]);
+ const setPin=v=>{try{v?localStorage.setItem(PK,v):localStorage.removeItem(PK)}catch(e){}setH(v);setOpen(true)};
+ const tryU=async v=>{if((await hp(v))===h){setOpen(true);setP('');setBad(false)}else{setBad(true);setP('')}};
+ if(h&&!open)return(<form onSubmit={ev=>{ev.preventDefault();tryU(p)}} className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-slate-900 p-6 text-white">
+  <div className="text-5xl">🔒</div><h1 className="text-xl font-semibold">가계부</h1>
+  <input autoFocus type="password" inputMode="numeric" maxLength="8" placeholder="Enter PIN" value={p} onChange={ev=>{setP(ev.target.value);setBad(false)}} className="n w-48 rounded-lg border border-slate-600 bg-slate-800 px-3 py-3 text-center text-xl tracking-widest text-white"/>
+  {bad&&<p className="text-sm text-red-400">Wrong PIN</p>}
+  <button className="w-48 rounded-lg bg-sky-600 px-3 py-2 font-medium text-white">Unlock</button></form>);
+ return <App pin={h} setPin={setPin}/>}
+ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
 </script><script>if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script></body></html>
