@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>가계부 Budget Tracker</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{background:#f1f5f9;font-family:Inter,system-ui,sans-serif}.n{font-variant-numeric:tabular-nums}@media(prefers-color-scheme:dark){body{background:#0f172a}}</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="가계부">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+</head><body><div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useMemo}=React;
+const CUR={KRW:{s:'₩',d:0},MYR:{s:'RM',d:2},USD:{s:'$',d:2}};
+const CK=Object.keys(CUR);
+const fmt=(a,c)=>(a<0?'-':'')+CUR[c].s+(c==='MYR'?' ':'')+Math.abs(a).toLocaleString('en-US',{minimumFractionDigits:CUR[c].d,maximumFractionDigits:CUR[c].d});
+const uid=()=>Math.random().toString(36).slice(2,9);
+const KEY='gagyebu-v1';
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const COL=['#0ea5e9','#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#ec4899','#64748b'];
+const mk=(n,t,cap=0)=>({id:uid(),name:n,type:t,cap,capCur:'KRW'});
+const DEF=()=>({year:new Date().getFullYear(),base:'KRW',rates:{KRW:1,MYR:300,USD:1400},
+ accounts:[{id:'a1',name:'Main Bank',type:'Bank Account',cur:'KRW',start:0}],
+ cats:[mk('Salary','income'),mk('Allowance','income'),mk('Other Income','income'),mk('Food','expense'),mk('Transport','expense'),mk('Housing','expense'),mk('Shopping','expense'),mk('Leisure','expense'),mk('Other','expense')],
+ tx:[],archive:[]});
+const load=()=>{try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.accounts&&r.tx)return {...DEF(),...r}}catch(e){}return DEF()};
+const conv=(s,a,f,t)=>a*s.rates[f]/s.rates[t];
+const bal=(s,a)=>a.start+s.tx.filter(t=>t.acc===a.id).reduce((x,t)=>x+(t.type==='income'?t.amt:-t.amt),0);
+const inp='w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900';
+const card='rounded-xl border border-slate-200 bg-white p-4 shadow-sm text-slate-900';
+const btn='rounded-lg px-3 py-2 text-sm font-medium';
+const pri=btn+' bg-slate-900 text-white hover:bg-slate-700';
+const sec=btn+' border border-slate-300 bg-white text-slate-700 hover:bg-slate-50';
+
+function CurBox({cur,setCur,val,setVal,ph}){return(
+ <div className="flex">
+  <div className="flex overflow-hidden rounded-l-lg border border-r-0 border-slate-300">
+   {CK.map(c=><button type="button" key={c} onClick={()=>setCur(c)} className={'px-2.5 text-sm '+(cur===c?'bg-slate-900 text-white':'bg-slate-50 text-slate-600')}>{CUR[c].s}</button>)}
+  </div>
+  <input type="number" step="any" min="0" placeholder={ph||'0'} value={val} onChange={e=>setVal(e.target.value)} className="n min-w-0 flex-1 rounded-r-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"/>
+ </div>)}
+function Modal({title,onClose,children}){return(
+ <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+  <div className={card+' w-full max-w-md max-h-[90vh] overflow-auto'} onClick={e=>e.stopPropagation()}>
+   <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">{title}</h3><button onClick={onClose} className="text-slate-400">✕</button></div>{children}
+  </div></div>)}
+const Field=({l,children})=><label className="block text-xs font-medium text-slate-500">{l}<div className="mt-1 text-slate-900">{children}</div></label>;
+
+function Donut({data,base}){
+ const tot=data.reduce((a,d)=>a+d.v,0);let off=0;const C=2*Math.PI*40;
+ if(!tot)return <p className="py-10 text-center text-sm text-slate-400">No data for this period</p>;
+ return(<div className="flex flex-col items-center gap-4 sm:flex-row">
+  <svg viewBox="0 0 100 100" className="h-44 w-44 shrink-0 -rotate-90">
+   {data.map((d,i)=>{const l=d.v/tot*C;const el=<circle key={d.name} cx="50" cy="50" r="40" fill="none" stroke={COL[i%COL.length]} strokeWidth="16" strokeDasharray={l+' '+(C-l)} strokeDashoffset={-off}/>;off+=l;return el})}
+  </svg>
+  <ul className="w-full space-y-1.5 text-sm">{data.map((d,i)=>
+   <li key={d.name} className="flex items-center justify-between gap-2"><span className="flex items-center gap-2"><i className="h-3 w-3 rounded-sm" style={{background:COL[i%COL.length]}}/>{d.name} <span className="text-slate-400">{(d.v/tot*100).toFixed(1)}%</span></span><span className="n">{fmt(d.v,base)}</span></li>)}</ul>
+ </div>)}
+
+function Dashboard({s,setS}){
+ const [m,setM]=useState('all');const [ct,setCt]=useState('expense');
+ const [acm,setAcm]=useState(false);const [rs,setRs]=useState(false);
+ const [a,setA]=useState({name:'',type:'Bank Account',cur:'KRW',start:''});
+ const [da,setDa]=useState(null);
+ const b=s.base;
+ const list=s.tx.filter(t=>m==='all'||+t.date.slice(5,7)-1===m);
+ const sum=ty=>list.filter(t=>t.type===ty).reduce((x,t)=>x+conv(s,t.amt,t.cur,b),0);
+ const inc=sum('income'),exp=sum('expense');
+ const byCat=ty=>{const o={};list.filter(t=>t.type===ty).forEach(t=>o[t.cat]=(o[t.cat]||0)+conv(s,t.amt,t.cur,b));return Object.entries(o).map(([name,v])=>({name,v})).sort((x,y)=>y.v-x.v)};
+ const buds=s.cats.filter(c=>c.type==='expense'&&c.cap>0).map(c=>{const cap=conv(s,c.cap,c.capCur,b)*(m==='all'?12:1);const sp=byCat('expense').find(x=>x.name===c.name)?.v||0;return{...c,cap,sp,r:sp/cap}});
+ const worst=buds.reduce((x,c)=>Math.max(x,c.r),0);
+ const health=!buds.length?['No budgets set','text-slate-500']:worst>1?['Over budget','text-red-600']:worst>0.8?['Near limit','text-amber-600']:['On track','text-emerald-600'];
+ const addAcc=()=>{if(!a.name.trim())return;setS(p=>({...p,accounts:[...p.accounts,{id:uid(),name:a.name.trim(),type:a.type,cur:a.cur,start:+a.start||0}]}));setAcm(false);setA({name:'',type:'Bank Account',cur:'KRW',start:''})};
+ const doReset=()=>setS(p=>{
+  const bi=p.tx.filter(t=>t.type==='income').reduce((x,t)=>x+conv(p,t.amt,t.cur,p.base),0);
+  const be=p.tx.filter(t=>t.type==='expense').reduce((x,t)=>x+conv(p,t.amt,t.cur,p.base),0);
+  const rec={year:p.year,earn:bi,exp:be,cur:p.base};
+  return{...p,archive:[...p.archive.filter(r=>r.year!==p.year),rec].sort((x,y)=>x.year-y.year),accounts:p.accounts.map(x=>({...x,start:bal(p,x)})),tx:[],year:p.year+1}});
+ return(<div className="space-y-4">
+  <div className="flex flex-wrap items-center justify-between gap-2">
+   <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{s.year} Dashboard</h2>
+   <button onClick={()=>setRs(true)} className={btn+' bg-red-600 text-white hover:bg-red-700'}>Reset Year</button></div>
+  <div className="flex flex-wrap gap-1.5">{['all',...MN.map((_,i)=>i)].map(k=>
+   <button key={k} onClick={()=>setM(k)} className={'rounded-full border px-3 py-1 text-sm '+(m===k?'border-slate-900 bg-slate-900 text-white':'border-slate-300 bg-white text-slate-600')}>{k==='all'?'Whole Year':MN[k]}</button>)}</div>
+  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+   <div className={card}><p className="text-xs text-slate-500">Total Earnings</p><p className="n mt-1 text-lg font-semibold text-emerald-600">{fmt(inc,b)}</p></div>
+   <div className={card}><p className="text-xs text-slate-500">Total Expenses</p><p className="n mt-1 text-lg font-semibold text-red-600">{fmt(exp,b)}</p></div>
+   <div className={card}><p className="text-xs text-slate-500">Net Cash Flow</p><p className="n mt-1 text-lg font-semibold">{fmt(inc-exp,b)}</p></div>
+   <div className={card}><p className="text-xs text-slate-500">Budget Health</p><p className={'mt-1 text-lg font-semibold '+health[1]}>{health[0]}</p></div>
+  </div>
+  <div className="grid gap-4 lg:grid-cols-2">
+   <div className={card}>
+    <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">Category Breakdown</h3>
+     <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">{['expense','income'].map(t=><button key={t} onClick={()=>setCt(t)} className={'px-3 py-1 capitalize '+(ct===t?'bg-slate-900 text-white':'bg-white text-slate-600')}>{t}</button>)}</div></div>
+    <Donut data={byCat(ct)} base={b}/></div>
+   <div className={card}><h3 className="mb-3 font-semibold">Budget Caps {m==='all'&&<span className="text-xs font-normal text-slate-400">(monthly cap × 12)</span>}</h3>
+    {!buds.length&&<p className="text-sm text-slate-400">Set caps in Ledger → Category Manager.</p>}
+    <div className="space-y-3">{buds.map(c=><div key={c.id}>
+     <div className="flex justify-between text-sm"><span>{c.name} {c.r>1?'🔴':c.r>0.8?'⚠️':''}</span><span className="n text-slate-500">{fmt(c.sp,b)} / {fmt(c.cap,b)}</span></div>
+     <div className="mt-1 h-2 rounded-full bg-slate-100"><div className={'h-2 rounded-full '+(c.r>1?'bg-red-500':c.r>0.8?'bg-amber-500':'bg-emerald-500')} style={{width:Math.min(100,c.r*100)+'%'}}/></div></div>)}</div></div>
+  </div>
+  <div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900 dark:text-slate-100">Accounts & Cards (통장 & 카드)</h3><button onClick={()=>setAcm(true)} className={pri}>+ Add Account</button></div>
+  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{s.accounts.map(x=>{const v=bal(s,x);return(
+   <div key={x.id} className={card}><div className="flex justify-between"><div><p className="font-medium">{x.name}</p><p className="text-xs text-slate-500">{x.type}</p></div>
+    <button onClick={()=>setDa(x)} className="h-fit rounded border border-red-200 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50">Delete</button></div>
+    <p className="n mt-3 text-xl font-semibold">{fmt(v,x.cur)}</p>
+    {x.cur!==b&&<p className="n text-xs text-slate-500">≈ {fmt(conv(s,v,x.cur,b),b)}</p>}</div>)})}</div>
+  {acm&&<Modal title="Add Account" onClose={()=>setAcm(false)}><div className="space-y-3">
+   <Field l="Name"><input className={inp} value={a.name} onChange={e=>setA({...a,name:e.target.value})}/></Field>
+   <Field l="Type"><select className={inp} value={a.type} onChange={e=>setA({...a,type:e.target.value})}><option>Bank Account</option><option>Card</option></select></Field>
+   <Field l="Starting balance"><CurBox cur={a.cur} setCur={c=>setA({...a,cur:c})} val={a.start} setVal={v=>setA({...a,start:v})}/></Field>
+   <button className={pri+' w-full'} onClick={addAcc}>Save</button></div></Modal>}
+  {da&&<Modal title={'Delete '+da.name+'?'} onClose={()=>setDa(null)}><p className="text-sm text-slate-600">This removes the account and its {s.tx.filter(t=>t.acc===da.id).length} transaction(s) this year. Current balance: {fmt(bal(s,da),da.cur)}. This cannot be undone.</p><div className="mt-4 flex gap-2"><button className={sec+' flex-1'} onClick={()=>setDa(null)}>Cancel</button><button className={btn+' flex-1 bg-red-600 text-white'} onClick={()=>{setS(p=>({...p,accounts:p.accounts.filter(y=>y.id!==da.id),tx:p.tx.filter(t=>t.acc!==da.id)}));setDa(null)}}>Delete account</button></div></Modal>}
+  {rs&&<Modal title={'Reset Year '+s.year} onClose={()=>setRs(false)}>
+   <p className="text-sm text-slate-600">This archives {s.year} totals, sets each account's starting balance to its Dec 31 ending balance, clears the ledger, and moves to {s.year+1}. This cannot be undone (export a backup first).</p>
+   <div className="mt-4 flex gap-2"><button className={sec+' flex-1'} onClick={()=>setRs(false)}>Cancel</button><button className={btn+' flex-1 bg-red-600 text-white'} onClick={()=>{doReset();setRs(false)}}>Confirm Reset</button></div></Modal>}
+ </div>)}
+
+function Ledger({s,setS}){
+ const today=new Date().toISOString().slice(0,10);
+ const blank=()=>({date:today.startsWith(s.year)?today:s.year+'-01-01',type:'expense',cat:'',acc:s.accounts[0]?.id||'',amt:'',cur:s.accounts[0]?.cur||'KRW',rec:false,memo:''});
+ const [f,setF]=useState(blank);const [ed,setEd]=useState(null);
+ const [fl,setFl]=useState({m:'',t:'',a:'',c:''});
+ const [nc,setNc]=useState({name:'',type:'expense'});
+ const cats=s.cats.filter(c=>c.type===f.type);
+ const cat=cats.find(c=>c.name===f.cat)?f.cat:cats[0]?.name||'';
+ const save=e=>{e.preventDefault();const amt=+f.amt;if(!(amt>0)||!f.acc)return;
+  const t={...f,cat,amt,id:ed||uid()};
+  setS(p=>({...p,tx:ed?p.tx.map(x=>x.id===ed?t:x):[...p.tx,t]}));setEd(null);setF({...blank(),type:f.type,acc:f.acc,cur:f.cur})};
+ const genRec=()=>{const mo=today.slice(0,7);if(!today.startsWith(s.year))return alert('Current month is outside the active year.');
+  setS(p=>{const rec=p.tx.filter(t=>t.rec&&t.date.slice(0,7)<mo);const latest={};rec.forEach(t=>{const k=t.cat+t.memo+t.acc;if(!latest[k]||t.date>latest[k].date)latest[k]=t});
+   const add=Object.values(latest).filter(t=>!p.tx.some(x=>x.rec&&x.cat===t.cat&&x.memo===t.memo&&x.acc===t.acc&&x.date.slice(0,7)===mo)).map(t=>({...t,id:uid(),date:mo+'-'+t.date.slice(8)}));
+   return{...p,tx:[...p.tx,...add]}})};
+ const rows=s.tx.filter(t=>(fl.m===''||+t.date.slice(5,7)-1===+fl.m)&&(!fl.t||t.type===fl.t)&&(!fl.a||t.acc===fl.a)&&(!fl.c||t.cur===fl.c)).sort((x,y)=>y.date.localeCompare(x.date));
+ const accN=id=>s.accounts.find(a=>a.id===id)?.name||'—';
+ return(<div className="grid gap-4 lg:grid-cols-[380px_1fr]"><div className="space-y-4">
+  <form onSubmit={save} className={card+' space-y-3'}><h3 className="font-semibold">{ed?'Edit Entry':'Quick Entry'}</h3>
+   <div className="grid grid-cols-2 gap-3">
+    <Field l="Date"><input type="date" className={inp} value={f.date} min={s.year+'-01-01'} max={s.year+'-12-31'} onChange={e=>setF({...f,date:e.target.value})}/></Field>
+    <Field l="Type"><select className={inp} value={f.type} onChange={e=>setF({...f,type:e.target.value})}><option value="expense">Expense</option><option value="income">Income</option></select></Field>
+    <Field l="Category"><select className={inp} value={cat} onChange={e=>setF({...f,cat:e.target.value})}>{cats.map(c=><option key={c.id}>{c.name}</option>)}</select></Field>
+    <Field l="Account"><select className={inp} value={f.acc} onChange={e=>setF({...f,acc:e.target.value,cur:s.accounts.find(a=>a.id===e.target.value)?.cur||f.cur})}>{s.accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></Field></div>
+   <Field l="Amount"><CurBox cur={f.cur} setCur={c=>setF({...f,cur:c})} val={f.amt} setVal={v=>setF({...f,amt:v})}/></Field>
+   <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={f.rec} onChange={e=>setF({...f,rec:e.target.checked})}/> Recurring (monthly)</label>
+   <Field l="Memo"><input className={inp} value={f.memo} onChange={e=>setF({...f,memo:e.target.value})}/></Field>
+   <div className="flex gap-2"><button className={pri+' flex-1'}>{ed?'Update':'Add'}</button>{ed&&<button type="button" className={sec} onClick={()=>{setEd(null);setF(blank())}}>Cancel</button>}</div>
+   <button type="button" onClick={genRec} className={sec+' w-full'}>↻ Log this month's recurring bills</button></form>
+  <div className={card+' space-y-2'}><h3 className="font-semibold">Category Manager (예산 설정)</h3>
+   {s.cats.map(c=><div key={c.id} className="flex items-center gap-2 text-sm"><span className="w-24 truncate">{c.name}</span><span className={'rounded px-1.5 text-xs '+(c.type==='income'?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600')}>{c.type==='income'?'in':'out'}</span>
+    {c.type==='expense'?<div className="flex flex-1 items-center gap-1"><select className="rounded border border-slate-300 bg-white py-1 text-xs" value={c.capCur} onChange={e=>setS(p=>({...p,cats:p.cats.map(x=>x.id===c.id?{...x,capCur:e.target.value}:x)}))}>{CK.map(k=><option key={k}>{k}</option>)}</select>
+     <input type="number" min="0" placeholder="Monthly cap" defaultValue={c.cap||''} onBlur={e=>setS(p=>({...p,cats:p.cats.map(x=>x.id===c.id?{...x,cap:+e.target.value||0}:x)}))} className="n w-full min-w-0 rounded border border-slate-300 bg-white px-2 py-1 text-xs"/></div>:<span className="flex-1"/>}
+    <button onClick={()=>setS(p=>({...p,cats:p.cats.filter(x=>x.id!==c.id)}))} className="text-slate-400 hover:text-red-500">✕</button></div>)}
+   <div className="flex gap-2 pt-1"><input className={inp} placeholder="New category" value={nc.name} onChange={e=>setNc({...nc,name:e.target.value})}/><select className="rounded-lg border border-slate-300 bg-white px-2 text-sm" value={nc.type} onChange={e=>setNc({...nc,type:e.target.value})}><option value="expense">Out</option><option value="income">In</option></select>
+    <button className={pri} onClick={()=>{if(nc.name.trim()){setS(p=>({...p,cats:[...p.cats,mk(nc.name.trim(),nc.type)]}));setNc({...nc,name:''})}}}>+</button></div></div>
+ </div>
+ <div className={card}><div className="mb-3 flex flex-wrap items-center gap-2"><h3 className="mr-auto font-semibold">History ({rows.length})</h3>
+  <select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={fl.m} onChange={e=>setFl({...fl,m:e.target.value})}><option value="">All months</option>{MN.map((x,i)=><option key={x} value={i}>{x}</option>)}</select>
+  <select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={fl.t} onChange={e=>setFl({...fl,t:e.target.value})}><option value="">All types</option><option value="income">Income</option><option value="expense">Expense</option></select>
+  <select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={fl.a} onChange={e=>setFl({...fl,a:e.target.value})}><option value="">All accounts</option>{s.accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>
+  <select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={fl.c} onChange={e=>setFl({...fl,c:e.target.value})}><option value="">All currencies</option>{CK.map(k=><option key={k}>{k}</option>)}</select></div>
+  <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-xs text-slate-500"><tr><th className="py-1">Date</th><th>Category</th><th>Account</th><th className="text-right">Amount</th><th></th></tr></thead>
+   <tbody>{rows.map(t=><tr key={t.id} className="border-t border-slate-100"><td className="n py-2">{t.date.slice(5)}</td>
+    <td>{t.cat}{t.rec&&<span title="Recurring"> ↻</span>}<div className="text-xs text-slate-400">{t.memo}</div></td><td className="text-slate-600">{accN(t.acc)}</td>
+    <td className={'n text-right font-medium '+(t.type==='income'?'text-emerald-600':'text-red-600')}>{t.type==='income'?'+':'−'}{fmt(t.amt,t.cur)} <span className="rounded bg-slate-100 px-1 text-[10px] text-slate-500">{t.cur}</span></td>
+    <td className="whitespace-nowrap text-right"><button className="px-1 text-slate-400 hover:text-sky-600" onClick={()=>{setEd(t.id);setF({...t,amt:String(t.amt)});window.scrollTo(0,0)}}>Edit</button><button className="px-1 text-slate-400 hover:text-red-500" onClick={()=>setS(p=>({...p,tx:p.tx.filter(x=>x.id!==t.id)}))}>Del</button></td></tr>)}</tbody></table>
+   {!rows.length&&<p className="py-8 text-center text-sm text-slate-400">No transactions yet</p>}</div></div></div>)}
+
+function Archive({s,setS}){
+ const b=s.base;
+ const [n,setN]=useState({year:s.year-1,earn:'',exp:'',cur:b});
+ const [py,setPy]=useState('');
+ const curT=useMemo(()=>{const g=ty=>s.tx.filter(t=>t.type===ty).reduce((x,t)=>x+conv(s,t.amt,t.cur,b),0);return{earn:g('income'),exp:g('expense')}},[s]);
+ const prev=s.archive.find(r=>r.year===+py)||s.archive[s.archive.length-1];
+ const P=prev&&{earn:conv(s,prev.earn,prev.cur,b),exp:conv(s,prev.exp,prev.cur,b)};
+ const add=()=>{if(!n.year)return;const r={year:+n.year,earn:+n.earn||0,exp:+n.exp||0,cur:n.cur};setS(p=>({...p,archive:[...p.archive.filter(x=>x.year!==r.year),r].sort((x,y)=>x.year-y.year)}))};
+ const vr=(c,p)=>({d:c-p,pc:p?((c-p)/Math.abs(p)*100):0});
+ let banner=null;
+ if(P){const v=vr(curT.exp,P.exp);const less=v.d<=0;banner=<div className={'rounded-xl p-4 text-sm font-medium '+(less?'bg-emerald-50 text-emerald-800':'bg-red-50 text-red-800')}>{P&&`You spent ${fmt(Math.abs(v.d),b)} (${Math.abs(v.pc).toFixed(1)}%) ${less?'less':'more'} than in ${prev.year}`}</div>}
+ const bars=P?[['Earnings',P.earn,curT.earn],['Expenses',P.exp,curT.exp],['Net',P.earn-P.exp,curT.earn-curT.exp]]:[];
+ const mx=Math.max(1,...bars.flatMap(x=>[Math.abs(x[1]),Math.abs(x[2])]));
+ return(<div className="space-y-4">
+  <div className={card}><h3 className="mb-3 font-semibold">Yearly Summary Log</h3>
+   <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-xs text-slate-500"><tr><th>Year</th><th className="text-right">Earnings</th><th className="text-right">Expenses</th><th className="text-right">Net Savings</th><th>Cur</th><th></th></tr></thead>
+    <tbody>{s.archive.map(r=><tr key={r.year} className="border-t border-slate-100"><td className="py-2">{r.year}</td><td className="n text-right">{fmt(r.earn,r.cur)}</td><td className="n text-right">{fmt(r.exp,r.cur)}</td><td className="n text-right font-medium">{fmt(r.earn-r.exp,r.cur)}</td><td>{r.cur}</td>
+     <td className="text-right"><button className="px-1 text-slate-400 hover:text-sky-600" onClick={()=>setN({year:r.year,earn:String(r.earn),exp:String(r.exp),cur:r.cur})}>Edit</button><button className="px-1 text-slate-400 hover:text-red-500" onClick={()=>setS(p=>({...p,archive:p.archive.filter(x=>x.year!==r.year)}))}>Del</button></td></tr>)}</tbody></table>
+    {!s.archive.length&&<p className="py-4 text-center text-sm text-slate-400">No archived years yet</p>}</div>
+   <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-[90px_1fr_1fr_auto]">
+    <Field l="Year"><input type="number" className={inp} value={n.year} onChange={e=>setN({...n,year:e.target.value})}/></Field>
+    <Field l="Earnings"><CurBox cur={n.cur} setCur={c=>setN({...n,cur:c})} val={n.earn} setVal={v=>setN({...n,earn:v})}/></Field>
+    <Field l="Expenses"><CurBox cur={n.cur} setCur={c=>setN({...n,cur:c})} val={n.exp} setVal={v=>setN({...n,exp:v})}/></Field>
+    <button className={pri+' self-end'} onClick={add}>Save year</button></div></div>
+  <div className={card+' space-y-4'}><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Year-over-Year · {s.year} vs {prev?prev.year:'—'}</h3>
+   <select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={prev?.year||''} onChange={e=>setPy(e.target.value)}>{s.archive.map(r=><option key={r.year}>{r.year}</option>)}</select></div>
+   {!P&&<p className="text-sm text-slate-400">Add or archive a previous year to compare.</p>}
+   {banner}
+   {P&&<><div className="grid gap-3 sm:grid-cols-3">{bars.map(([l,p,c])=>{const v=vr(c,p);return<div key={l} className="rounded-lg bg-slate-50 p-3 text-slate-900"><p className="text-xs text-slate-500">{l} variance</p><p className="n font-semibold">{v.d>=0?'+':'−'}{fmt(Math.abs(v.d),b)}</p><p className="n text-xs text-slate-500">{v.pc>=0?'+':''}{v.pc.toFixed(1)}%</p></div>})}</div>
+   <svg viewBox="0 0 360 180" className="w-full max-w-xl">{bars.map(([l,p,c],i)=>{const x=20+i*115,h=v=>Math.abs(v)/mx*130;return<g key={l}>
+    <rect x={x} y={150-h(p)} width="40" height={h(p)} rx="3" fill="#94a3b8"/><rect x={x+45} y={150-h(c)} width="40" height={h(c)} rx="3" fill="#0ea5e9"/>
+    <text x={x+42} y="168" textAnchor="middle" fontSize="11" fill="#64748b">{l}</text></g>})}
+    <rect x="240" y="4" width="8" height="8" fill="#94a3b8"/><text x="252" y="12" fontSize="10" fill="#64748b">{prev.year}</text><rect x="295" y="4" width="8" height="8" fill="#0ea5e9"/><text x="307" y="12" fontSize="10" fill="#64748b">{s.year}</text></svg></>}</div></div>)}
+
+function App(){
+ const [s,setS]=useState(load);const [tab,setTab]=useState('dash');const [fx,setFx]=useState(false);const [bk,setBk]=useState(false);const [txt,setTxt]=useState('');
+ useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}},[s]);
+ const T=[['dash','Dashboard'],['led','Ledger 가계부'],['arc','Yearly Archive']];
+ const imp=()=>{try{const r=JSON.parse(txt);if(!r.accounts||!r.tx||!r.rates)throw 0;setS({...DEF(),...r});setBk(false)}catch(e){alert('Invalid backup JSON')}};
+ return(<div><header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2">
+  <h1 className="mr-2 font-bold text-slate-900">💰 가계부</h1>
+  <nav className="flex gap-1">{T.map(([k,l])=><button key={k} onClick={()=>setTab(k)} className={'rounded-lg px-3 py-1.5 text-sm '+(tab===k?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}>{l}</button>)}</nav>
+  <div className="ml-auto flex flex-wrap items-center gap-2">
+   <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">{CK.map(c=><button key={c} onClick={()=>setS({...s,base:c})} className={'px-2.5 py-1 '+(s.base===c?'bg-sky-600 text-white':'bg-white text-slate-600')}>{c}</button>)}</div>
+   <button className={sec} onClick={()=>setFx(true)}>FX Rates</button>
+   <button className={sec} onClick={()=>{setTxt(JSON.stringify(s,null,1));setBk(true)}}>Backup</button></div></div></header>
+  <main className="mx-auto max-w-6xl p-4">{tab==='dash'?<Dashboard s={s} setS={setS}/>:tab==='led'?<Ledger s={s} setS={setS}/>:<Archive s={s} setS={setS}/>}</main>
+  {fx&&<Modal title="Exchange Rates (₩ per 1 unit)" onClose={()=>setFx(false)}><div className="space-y-3">
+   {['MYR','USD'].map(c=><Field key={c} l={'1 '+c+' = ₩'}><input type="number" step="any" min="0" className={inp+' n'} value={s.rates[c]} onChange={e=>setS({...s,rates:{...s.rates,[c]:+e.target.value||s.rates[c]}})}/></Field>)}
+   <p className="text-xs text-slate-500">Rates are set manually. Transactions keep their native currency; only displays convert.</p></div></Modal>}
+  {bk&&<Modal title="Backup / Restore" onClose={()=>setBk(false)}><p className="mb-2 text-xs text-slate-500">Copy this JSON to export. To import, paste a backup below and press Import.</p>
+   <textarea className={inp+' h-56 font-mono text-xs'} value={txt} onChange={e=>setTxt(e.target.value)}/>
+   <div className="mt-3 flex gap-2"><button className={sec+' flex-1'} onClick={()=>{try{navigator.clipboard.writeText(txt)}catch(e){}}}>Copy</button><button className={pri+' flex-1'} onClick={imp}>Import</button></div></Modal>}
+ </div>)}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script><script>if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script></body></html>
