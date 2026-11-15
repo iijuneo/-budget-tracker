@@ -6,7 +6,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
-<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{background:#f1f5f9;font-family:Inter,system-ui,sans-serif}.n{font-variant-numeric:tabular-nums}@media(prefers-color-scheme:dark){body{background:#0f172a}}</style>
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{background:#f1f5f9;font-family:Inter,system-ui,sans-serif}.n{font-variant-numeric:tabular-nums}@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}.shake{animation:shake .4s}@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}.rise{animation:rise .6s ease both}@media(prefers-color-scheme:dark){body{background:#0f172a}}</style>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -76,6 +76,18 @@ function Dashboard({s,setS}){
  const buds=s.cats.filter(c=>c.type==='expense'&&c.cap>0).map(c=>{const cap=conv(s,c.cap,c.capCur,b)*(m==='all'?12:1);const sp=byCat('expense').find(x=>x.name===c.name)?.v||0;return{...c,cap,sp,r:sp/cap}});
  const worst=buds.reduce((x,c)=>Math.max(x,c.r),0);
  const health=!buds.length?['No budgets set','text-slate-500']:worst>1?['Over budget','text-red-600']:worst>0.8?['Near limit','text-amber-600']:['On track','text-emerald-600'];
+const now=new Date();const tot0=s.accounts.reduce((x,ac)=>x+conv(s,ac.start,ac.cur,b),0);
+ const net=Array(12).fill(0);s.tx.forEach(t=>{const i=+t.date.slice(5,7)-1;if(i>=0&&i<12)net[i]+=(t.type==='income'?1:-1)*conv(s,t.amt,t.cur,b)});
+ const mxTx=s.tx.reduce((x,t)=>Math.max(x,+t.date.slice(5,7)-1),0);
+ const lastM=s.year===now.getFullYear()?Math.max(now.getMonth(),mxTx):mxTx;
+ let run=tot0;const bals=net.map(v=>run+=v);const pts=bals.slice(0,lastM+1);
+ const lo=Math.min(tot0,...pts),hi=Math.max(tot0,...pts),rg=(hi-lo)||1;
+ const X=i=>30+i*(320/11),Y=v=>18+(1-(v-lo)/rg)*105;
+ const mxn=Math.max(1,...net.slice(0,lastM+1).map(Math.abs));
+ const cf=v=>{const a=Math.abs(v);return(v<0?'-':'')+CUR[b].s+(a>=1e6?(a/1e6).toFixed(1)+'M':a>=1e3?(a/1e3).toFixed(0)+'k':a.toFixed(0))};
+ const line=pts.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join(' ');
+ const area=line+' L'+X(pts.length-1).toFixed(1)+' 125 L30 125 Z';
+ const chg=pts[pts.length-1]-tot0;
  const addAcc=()=>{if(!a.name.trim())return;setS(p=>({...p,accounts:[...p.accounts,{id:uid(),name:a.name.trim(),type:a.type,cur:a.cur,start:+a.start||0}]}));setAcm(false);setA({name:'',type:'Bank Account',cur:'KRW',start:''})};
  const doReset=()=>setS(p=>{
   const bi=p.tx.filter(t=>t.type==='income').reduce((x,t)=>x+conv(p,t.amt,t.cur,p.base),0);
@@ -99,11 +111,16 @@ function Dashboard({s,setS}){
     <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">Category Breakdown</h3>
      <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">{['expense','income'].map(t=><button key={t} onClick={()=>setCt(t)} className={'px-3 py-1 capitalize '+(ct===t?'bg-slate-900 text-white':'bg-white text-slate-600')}>{t}</button>)}</div></div>
     <Donut data={byCat(ct)} base={b}/></div>
-   <div className={card}><h3 className="mb-3 font-semibold">Budget Caps {m==='all'&&<span className="text-xs font-normal text-slate-400">(monthly cap × 12)</span>}</h3>
-    {!buds.length&&<p className="text-sm text-slate-400">Set caps in Ledger → Category Manager.</p>}
-    <div className="space-y-3">{buds.map(c=><div key={c.id}>
-     <div className="flex justify-between text-sm"><span>{c.name} {c.r>1?'🔴':c.r>0.8?'⚠️':''}</span><span className="n text-slate-500">{fmt(c.sp,b)} / {fmt(c.cap,b)}</span></div>
-     <div className="mt-1 h-2 rounded-full bg-slate-100"><div className={'h-2 rounded-full '+(c.r>1?'bg-red-500':c.r>0.8?'bg-amber-500':'bg-emerald-500')} style={{width:Math.min(100,c.r*100)+'%'}}/></div></div>)}</div></div>
+   <div className={card}><h3 className="font-semibold">Monthly Money Flow</h3><p className="mb-2 text-xs text-slate-500">Total balance at each month-end ({b}); bars show each month's net</p>
+    <svg viewBox="0 0 360 215" className="w-full">
+     <path d={area} fill="#0ea5e9" opacity=".12"/><path d={line} fill="none" stroke="#0ea5e9" strokeWidth="2"/>
+     {pts.map((v,i)=><circle key={i} cx={X(i)} cy={Y(v)} r="3" fill="#0ea5e9"><title>{MN[i]}: {fmt(v,b)} (net {fmt(net[i],b)})</title></circle>)}
+     <text x="2" y="22" fontSize="8" fill="#64748b">{cf(hi)}</text><text x="2" y="125" fontSize="8" fill="#64748b">{cf(lo)}</text>
+     {MN.map((x,i)=><text key={x} x={X(i)} y="142" textAnchor="middle" fontSize="8" fill="#64748b">{x}</text>)}
+     <text x="2" y="190" fontSize="8" fill="#64748b">Net</text><line x1="30" x2="350" y1="190" y2="190" stroke="#e2e8f0"/>
+     {net.slice(0,lastM+1).map((v,i)=>{const hh=Math.abs(v)/mxn*22;return <rect key={i} x={X(i)-6} y={v>=0?190-hh:190} width="12" height={hh} rx="2" fill={v>=0?'#10b981':'#ef4444'}/>})}
+    </svg>
+    <div className="n flex justify-between text-sm"><span>Now <b>{fmt(pts[pts.length-1],b)}</b></span><span className={chg>=0?'text-emerald-600':'text-red-600'}>{chg>=0?'▲ +':'▼ −'}{fmt(Math.abs(chg),b)} since Jan 1</span></div></div>
   </div>
   <div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900 dark:text-slate-100">Accounts & Cards (통장 & 카드)</h3><button onClick={()=>setAcm(true)} className={pri}>+ Add Account</button></div>
   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{s.accounts.map(x=>{const v=bal(s,x);return(
@@ -111,6 +128,11 @@ function Dashboard({s,setS}){
     <button onClick={()=>setDa(x)} className="h-fit rounded border border-red-200 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50">Delete</button></div>
     <p className="n mt-3 text-xl font-semibold">{fmt(v,x.cur)}</p>
     {x.cur!==b&&<p className="n text-xs text-slate-500">≈ {fmt(conv(s,v,x.cur,b),b)}</p>}</div>)})}</div>
+   <div className={card}><h3 className="mb-3 font-semibold">Budget Caps {m==='all'&&<span className="text-xs font-normal text-slate-400">(monthly cap × 12)</span>}</h3>
+    {!buds.length&&<p className="text-sm text-slate-400">Set caps in Ledger → Category Manager.</p>}
+    <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">{buds.map(c=><div key={c.id}>
+     <div className="flex justify-between text-sm"><span>{c.name} {c.r>1?'🔴':c.r>0.8?'⚠️':''}</span><span className="n text-slate-500">{fmt(c.sp,b)} / {fmt(c.cap,b)}</span></div>
+     <div className="mt-1 h-2 rounded-full bg-slate-100"><div className={'h-2 rounded-full '+(c.r>1?'bg-red-500':c.r>0.8?'bg-amber-500':'bg-emerald-500')} style={{width:Math.min(100,c.r*100)+'%'}}/></div></div>)}</div></div>
   {acm&&<Modal title="Add Account" onClose={()=>setAcm(false)}><div className="space-y-3">
    <Field l="Name"><input className={inp} value={a.name} onChange={e=>setA({...a,name:e.target.value})}/></Field>
    <Field l="Type"><select className={inp} value={a.type} onChange={e=>setA({...a,type:e.target.value})}><option>Bank Account</option><option>Card</option></select></Field>
@@ -205,7 +227,7 @@ function Archive({s,setS}){
     <text x={x+42} y="168" textAnchor="middle" fontSize="11" fill="#64748b">{l}</text></g>})}
     <rect x="240" y="4" width="8" height="8" fill="#94a3b8"/><text x="252" y="12" fontSize="10" fill="#64748b">{prev.year}</text><rect x="295" y="4" width="8" height="8" fill="#0ea5e9"/><text x="307" y="12" fontSize="10" fill="#64748b">{s.year}</text></svg></>}</div></div>)}
 
-function App({pin,setPin}){
+function App({pin,setPin,lockOn,setLock}){
  const [s,setS]=useState(load);const [pk,setPk]=useState(false);const [tab,setTab]=useState('dash');const [fx,setFx]=useState(false);const [bk,setBk]=useState(false);const [txt,setTxt]=useState('');
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}},[s]);
  const T=[['dash','Dashboard'],['led','Ledger 가계부'],['arc','Yearly Archive']];
@@ -217,9 +239,9 @@ function App({pin,setPin}){
    <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">{CK.map(c=><button key={c} onClick={()=>setS({...s,base:c})} className={'px-2.5 py-1 '+(s.base===c?'bg-sky-600 text-white':'bg-white text-slate-600')}>{c}</button>)}</div>
    <button className={sec} onClick={()=>setFx(true)}>FX Rates</button>
    <button className={sec} onClick={()=>{setTxt(JSON.stringify(s,null,1));setBk(true)}}>Backup</button>
-   <button className={sec} onClick={()=>setPk(true)}>{pin?'🔒':'🔓'} PIN</button></div></div></header>
+   <button className={sec} onClick={()=>setPk(true)}>{pin&&lockOn?'🔒':'🔓'} Password</button></div></div></header>
   <main className="mx-auto max-w-6xl p-4">{tab==='dash'?<Dashboard s={s} setS={setS}/>:tab==='led'?<Ledger s={s} setS={setS}/>:<Archive s={s} setS={setS}/>}</main>
-  {pk&&<PinSettings pin={pin} setPin={setPin} onClose={()=>setPk(false)}/>}
+  {pk&&<PinSettings pin={pin} setPin={setPin} lockOn={lockOn} setLock={setLock} onClose={()=>setPk(false)}/>}
   {fx&&<Modal title="Exchange Rates (₩ per 1 unit)" onClose={()=>setFx(false)}><div className="space-y-3">
    {['MYR','USD'].map(c=><Field key={c} l={'1 '+c+' = ₩'}><input type="number" step="any" min="0" className={inp+' n'} value={s.rates[c]} onChange={e=>setS({...s,rates:{...s.rates,[c]:+e.target.value||s.rates[c]}})}/></Field>)}
    <p className="text-xs text-slate-500">Rates are set manually. Transactions keep their native currency; only displays convert.</p></div></Modal>}
@@ -229,31 +251,45 @@ function App({pin,setPin}){
  </div>)}
 const PK='gagyebu-pin';
 async function hp(pin){try{if(crypto.subtle){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('gagyebu:'+pin));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}}catch(e){}return 'p:'+pin}
-function PinSettings({pin,setPin,onClose}){
- const [c,setC]=useState('');const [n,setN]=useState('');const [n2,setN2]=useState('');const [err,setErr]=useState('');
+function PinSettings({pin,setPin,lockOn,setLock,onClose}){
+ const [c,setC]=useState('');const [n,setN]=useState('');const [n2,setN2]=useState('');const [err,setErr]=useState('');const [sh,setSh]=useState(false);
  const chk=async()=>!pin||(await hp(c))===pin;
- const save=async()=>{if(!(await chk()))return setErr('Current PIN is wrong');if(!/^\d{4,8}$/.test(n))return setErr('PIN must be 4–8 digits');if(n!==n2)return setErr("PINs don't match");setPin(await hp(n));onClose()};
- const rem=async()=>{if(!(await chk()))return setErr('Current PIN is wrong');setPin(null);onClose()};
- const pw=(v,f)=><input type="password" inputMode="numeric" maxLength="8" className={inp} value={v} onChange={ev=>f(ev.target.value)}/>;
- return(<Modal title={pin?'Change or remove PIN':'Set a PIN'} onClose={onClose}><div className="space-y-3">
-  {pin&&<Field l="Current PIN">{pw(c,setC)}</Field>}
-  <Field l="New PIN (4–8 digits)">{pw(n,setN)}</Field><Field l="Confirm new PIN">{pw(n2,setN2)}</Field>
+ const save=async()=>{if(!(await chk()))return setErr('Current password is wrong');if(n.length<6)return setErr('Use at least 6 characters');if(n!==n2)return setErr("Passwords don't match");setPin(await hp(n));onClose()};
+ const rem=async()=>{if(!(await chk()))return setErr('Current password is wrong');setPin(null);onClose()};
+ const tog=async()=>{if(lockOn){if(!(await chk()))return setErr('Enter your current password below to turn the lock off');setLock(false)}else setLock(true);onClose()};
+ const pw=(v,f)=><input type={sh?'text':'password'} autoComplete="off" autoCapitalize="off" spellCheck="false" maxLength="64" className={inp} value={v} onChange={ev=>f(ev.target.value)}/>;
+ return(<Modal title={pin?'Change or remove password':'Set a password'} onClose={onClose}><div className="space-y-3">
+  {pin&&<div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3"><div><p className="text-sm font-medium text-slate-800">Lock screen</p><p className="text-xs text-slate-500">{lockOn?'On. Asks for your password when opening. To turn off, type your current password below first.':'Off. The app opens without a password.'}</p></div>
+   <button type="button" onClick={tog} className={'h-6 w-11 shrink-0 rounded-full p-0.5 transition '+(lockOn?'bg-emerald-500':'bg-slate-300')}><span className={'block h-5 w-5 rounded-full bg-white shadow transition '+(lockOn?'translate-x-5':'')}/></button></div>}
+  {pin&&<Field l="Current password">{pw(c,setC)}</Field>}
+  <Field l="New password (6+ characters: letters, numbers, symbols)">{pw(n,setN)}</Field><Field l="Confirm new password">{pw(n2,setN2)}</Field>
+  <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={sh} onChange={ev=>setSh(ev.target.checked)}/> Show characters</label>
   {err&&<p className="text-sm text-red-600">{err}</p>}
-  <button className={pri+' w-full'} onClick={save}>Save PIN</button>
-  {pin&&<button className={sec+' w-full'} onClick={rem}>Remove PIN</button>}
-  <p className="text-xs text-slate-500">The PIN locks the app screen. If you forget it, the only way in is clearing the app's site data, which erases your budget, so keep a Backup.</p></div></Modal>)}
+  <button className={pri+' w-full'} onClick={save}>Save password</button>
+  {pin&&<button className={sec+' w-full'} onClick={rem}>Remove password</button>}
+  <p className="text-xs text-slate-500">The password locks the app screen. If you forget it, the only way in is clearing the app's site data, which erases your budget, so keep a Backup.</p></div></Modal>)}
 function Root(){
  const [h,setH]=useState(()=>{try{return localStorage.getItem(PK)}catch(e){return null}});
- const [open,setOpen]=useState(!h);const [p,setP]=useState('');const [bad,setBad]=useState(false);
+ const [open,setOpen]=useState(!h);const [p,setP]=useState('');const [bad,setBad]=useState(false);const [show,setShow]=useState(false);
+ const [on,setOn]=useState(()=>{try{return localStorage.getItem('gagyebu-lock')!=='off'}catch(e){return true}});
  const last=React.useRef(0);
- useEffect(()=>{const f=()=>{if(document.hidden)last.current=Date.now();else if(h&&Date.now()-last.current>30000)setOpen(false)};document.addEventListener('visibilitychange',f);return()=>document.removeEventListener('visibilitychange',f)},[h]);
- const setPin=v=>{try{v?localStorage.setItem(PK,v):localStorage.removeItem(PK)}catch(e){}setH(v);setOpen(true)};
+ useEffect(()=>{const f=()=>{if(document.hidden)last.current=Date.now();else if(h&&on&&Date.now()-last.current>30000)setOpen(false)};document.addEventListener('visibilitychange',f);return()=>document.removeEventListener('visibilitychange',f)},[h,on]);
+ const setLock=v=>{try{localStorage.setItem('gagyebu-lock',v?'on':'off')}catch(e){}setOn(v);setOpen(true)};
+ const setPin=v=>{try{v?localStorage.setItem(PK,v):localStorage.removeItem(PK)}catch(e){}setH(v);if(v)setLock(true);setOpen(true)};
  const tryU=async v=>{if((await hp(v))===h){setOpen(true);setP('');setBad(false)}else{setBad(true);setP('')}};
- if(h&&!open)return(<form onSubmit={ev=>{ev.preventDefault();tryU(p)}} className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-slate-900 p-6 text-white">
-  <div className="text-5xl">🔒</div><h1 className="text-xl font-semibold">가계부</h1>
-  <input autoFocus type="password" inputMode="numeric" maxLength="8" placeholder="Enter PIN" value={p} onChange={ev=>{setP(ev.target.value);setBad(false)}} className="n w-48 rounded-lg border border-slate-600 bg-slate-800 px-3 py-3 text-center text-xl tracking-widest text-white"/>
-  {bad&&<p className="text-sm text-red-400">Wrong PIN</p>}
-  <button className="w-48 rounded-lg bg-sky-600 px-3 py-2 font-medium text-white">Unlock</button></form>);
- return <App pin={h} setPin={setPin}/>}
+ if(h&&on&&!open)return(<form onSubmit={ev=>{ev.preventDefault();tryU(p)}} className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-6 text-white" style={{background:'radial-gradient(ellipse at 20% 10%,#1e293b 0%,#0b1120 55%,#05070d 100%)'}}>
+  <div className="pointer-events-none absolute -left-24 -top-32 h-96 w-96 rounded-full bg-sky-500/20 blur-3xl"/>
+  <div className="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-amber-400/10 blur-3xl"/>
+  <div className={'rise relative w-full max-w-sm rounded-3xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl backdrop-blur-xl '+(bad?'shake':'')}>
+   <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-semibold text-slate-900 shadow-lg" style={{background:'linear-gradient(135deg,#f5e6b8,#d4af37 55%,#a67c1a)'}}>₩</div>
+   <h1 className="text-2xl font-light tracking-[0.35em]">가계부</h1>
+   <p className="mt-2 text-[11px] uppercase tracking-[0.35em] text-slate-400">Private Ledger</p>
+   <div className="relative mt-9">
+    <input autoFocus type={show?'text':'password'} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false" maxLength="64" placeholder="Password" value={p} onChange={ev=>{setP(ev.target.value);setBad(false)}} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-16 text-center text-white placeholder-slate-500 outline-none transition focus:border-amber-300/60"/>
+    <button type="button" onClick={()=>setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] uppercase tracking-wider text-slate-400 hover:text-amber-200">{show?'Hide':'Show'}</button></div>
+   <p className="mt-3 h-5 text-sm text-red-400">{bad?'Incorrect password':''}</p>
+   <button className="mt-2 w-full rounded-xl py-3 text-sm font-semibold tracking-widest text-slate-900 shadow-lg transition hover:brightness-110" style={{background:'linear-gradient(135deg,#f5e6b8,#d4af37 55%,#a67c1a)'}}>UNLOCK</button>
+  </div></form>);
+ return <App pin={h} setPin={setPin} lockOn={on} setLock={setLock}/>}
 ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
 </script><script>if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script></body></html>
