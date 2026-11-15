@@ -135,7 +135,7 @@ const now=new Date();const tot0=s.accounts.reduce((x,ac)=>x+conv(s,ac.start,ac.c
      <div className="mt-1 h-2 rounded-full bg-slate-100"><div className={'h-2 rounded-full '+(c.r>1?'bg-red-500':c.r>0.8?'bg-amber-500':'bg-emerald-500')} style={{width:Math.min(100,c.r*100)+'%'}}/></div></div>)}</div></div>
   {acm&&<Modal title="Add Account" onClose={()=>setAcm(false)}><div className="space-y-3">
    <Field l="Name"><input className={inp} value={a.name} onChange={e=>setA({...a,name:e.target.value})}/></Field>
-   <Field l="Type"><select className={inp} value={a.type} onChange={e=>setA({...a,type:e.target.value})}><option>Bank Account</option><option>Card</option></select></Field>
+   <Field l="Type"><select className={inp} value={a.type} onChange={e=>setA({...a,type:e.target.value})}><option value="Bank Account">Bank Account</option><option value="Card">Card</option></select></Field>
    <Field l="Starting balance"><CurBox cur={a.cur} setCur={c=>setA({...a,cur:c})} val={a.start} setVal={v=>setA({...a,start:v})}/></Field>
    <button className={pri+' w-full'} onClick={addAcc}>Save</button></div></Modal>}
   {da&&<Modal title={'Delete '+da.name+'?'} onClose={()=>setDa(null)}><p className="text-sm text-slate-600">This removes the account and its {s.tx.filter(t=>t.acc===da.id).length} transaction(s) this year. Current balance: {fmt(bal(s,da),da.cur)}. This cannot be undone.</p><div className="mt-4 flex gap-2"><button className={sec+' flex-1'} onClick={()=>setDa(null)}>Cancel</button><button className={btn+' flex-1 bg-red-600 text-white'} onClick={()=>{setS(p=>({...p,accounts:p.accounts.filter(y=>y.id!==da.id),tx:p.tx.filter(t=>t.acc!==da.id)}));setDa(null)}}>Delete account</button></div></Modal>}
@@ -163,10 +163,11 @@ function Ledger({s,setS}){
  const accN=id=>s.accounts.find(a=>a.id===id)?.name||'—';
  return(<div className="grid gap-4 lg:grid-cols-[380px_1fr]"><div className="space-y-4">
   <form onSubmit={save} className={card+' space-y-3'}><h3 className="font-semibold">{ed?'Edit Entry':'Quick Entry'}</h3>
+   {!s.accounts.length&&<p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Add an account on the Dashboard first (+ Add Account), then you can enter transactions.</p>}
    <div className="grid grid-cols-2 gap-3">
     <Field l="Date"><input type="date" className={inp} value={f.date} min={s.year+'-01-01'} max={s.year+'-12-31'} onChange={e=>setF({...f,date:e.target.value})}/></Field>
     <Field l="Type"><select className={inp} value={f.type} onChange={e=>setF({...f,type:e.target.value})}><option value="expense">Expense</option><option value="income">Income</option></select></Field>
-    <Field l="Category"><select className={inp} value={cat} onChange={e=>setF({...f,cat:e.target.value})}>{cats.map(c=><option key={c.id}>{c.name}</option>)}</select></Field>
+    <Field l="Category"><select className={inp} value={cat} onChange={e=>setF({...f,cat:e.target.value})}>{cats.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
     <Field l="Account"><select className={inp} value={f.acc} onChange={e=>setF({...f,acc:e.target.value,cur:s.accounts.find(a=>a.id===e.target.value)?.cur||f.cur})}>{s.accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></Field></div>
    <Field l="Amount"><CurBox cur={f.cur} setCur={c=>setF({...f,cur:c})} val={f.amt} setVal={v=>setF({...f,amt:v})}/></Field>
    <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={f.rec} onChange={e=>setF({...f,rec:e.target.checked})}/> Recurring (monthly)</label>
@@ -190,7 +191,7 @@ function Ledger({s,setS}){
    <tbody>{rows.map(t=><tr key={t.id} className="border-t border-slate-100"><td className="n py-2">{t.date.slice(5)}</td>
     <td>{t.cat}{t.rec&&<span title="Recurring"> ↻</span>}<div className="text-xs text-slate-400">{t.memo}</div></td><td className="text-slate-600">{accN(t.acc)}</td>
     <td className={'n text-right font-medium '+(t.type==='income'?'text-emerald-600':'text-red-600')}>{t.type==='income'?'+':'−'}{fmt(t.amt,t.cur)} <span className="rounded bg-slate-100 px-1 text-[10px] text-slate-500">{t.cur}</span></td>
-    <td className="whitespace-nowrap text-right"><button className="px-1 text-slate-400 hover:text-sky-600" onClick={()=>{setEd(t.id);setF({...t,amt:String(t.amt)});window.scrollTo(0,0)}}>Edit</button><button className="px-1 text-slate-400 hover:text-red-500" onClick={()=>setS(p=>({...p,tx:p.tx.filter(x=>x.id!==t.id)}))}>Del</button></td></tr>)}</tbody></table>
+    <td className="whitespace-nowrap text-right"><button className="mr-1 rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-50" onClick={()=>{setEd(t.id);setF({...t,amt:String(t.amt)});window.scrollTo(0,0)}}>Edit</button><button className="rounded border border-red-200 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50" onClick={()=>{if(confirm('Delete this transaction?')){if(ed===t.id){setEd(null);setF(blank())}setS(p=>({...p,tx:p.tx.filter(x=>x.id!==t.id)}))}}}>Delete</button></td></tr>)}</tbody></table>
    {!rows.length&&<p className="py-8 text-center text-sm text-slate-400">No transactions yet</p>}</div></div></div>)}
 
 function Archive({s,setS}){
@@ -228,7 +229,7 @@ function Archive({s,setS}){
     <rect x="240" y="4" width="8" height="8" fill="#94a3b8"/><text x="252" y="12" fontSize="10" fill="#64748b">{prev.year}</text><rect x="295" y="4" width="8" height="8" fill="#0ea5e9"/><text x="307" y="12" fontSize="10" fill="#64748b">{s.year}</text></svg></>}</div></div>)}
 
 function App({pin,setPin,lockOn,setLock}){
- const [s,setS]=useState(load);const [pk,setPk]=useState(false);const [ac,setAc]=useState(false);const [sess,setSess]=useState(readSess);const [sync,setSync]=useState(readSess()?'syncing':'off');
+ const [s,setS]=useState(load);const [pk,setPk]=useState(false);const [ac,setAc]=useState(false);const [lang,setLang]=useState(LANG);const [sess,setSess]=useState(readSess);const [sync,setSync]=useState(readSess()?'syncing':'off');
  const skip=React.useRef(true),sRef=React.useRef(s),tmr=React.useRef(null);sRef.current=s;const [tab,setTab]=useState('dash');const [fx,setFx]=useState(false);const [bk,setBk]=useState(false);const [txt,setTxt]=useState('');
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}
   if(skip.current){skip.current=false;return}
@@ -260,7 +261,8 @@ function App({pin,setPin,lockOn,setLock}){
    <button className={sec} onClick={()=>setFx(true)}>FX Rates</button>
    <button className={sec} onClick={()=>{setTxt(JSON.stringify(s,null,1));setBk(true)}}>Backup</button>
    <button className={sec} onClick={()=>setPk(true)}>{pin&&lockOn?'🔒':'🔓'} Password</button>
-   <button className={sec} onClick={()=>setAc(true)}>{sess?({synced:'☁️ Synced',syncing:'↻ Syncing',offline:'⚠️ Offline'}[sync]||'☁️'):'👤 Log in'}</button></div></div></header>
+   <button className={sec} onClick={()=>setAc(true)}>{sess?({synced:'☁️ Synced',syncing:'↻ Syncing',offline:'⚠️ Offline'}[sync]||'☁️'):'👤 Log in'}</button>
+   <button className={sec} title="Language / 언어" onClick={()=>{LANG=LANG==='ko'?'en':'ko';try{localStorage.setItem('gagyebu-lang',LANG)}catch(e){}document.documentElement.lang=LANG;setLang(LANG);setTimeout(()=>doNode(document.body),0)}}>🌐 {lang==='ko'?'한':'EN'}</button></div></div></header>
   <main className="mx-auto max-w-6xl p-4">{tab==='dash'?<Dashboard s={s} setS={setS}/>:tab==='led'?<Ledger s={s} setS={setS}/>:<Archive s={s} setS={setS}/>}</main>
   {ac&&<Account sess={sess} sync={sync} onAuth={n=>{setSess(n);setSync('syncing');setAc(false)}} onOut={()=>{lset(SESS,null);setSess(null);setSync('off');setAc(false)}} onSync={doSync} onClose={()=>setAc(false)}/>}
   {pk&&<PinSettings pin={pin} setPin={setPin} lockOn={lockOn} setLock={setLock} onClose={()=>setPk(false)}/>}
@@ -271,6 +273,47 @@ function App({pin,setPin,lockOn,setLock}){
    <textarea className={inp+' h-56 font-mono text-xs'} value={txt} onChange={e=>setTxt(e.target.value)}/>
    <div className="mt-3 flex gap-2"><button className={sec+' flex-1'} onClick={()=>{try{navigator.clipboard.writeText(txt)}catch(e){}}}>Copy</button><button className={pri+' flex-1'} onClick={imp}>Import</button></div></Modal>}
  </div>)}
+let LANG='en';try{LANG=localStorage.getItem('gagyebu-lang')==='ko'?'ko':'en'}catch(e){}
+const KO={'Dashboard':'대시보드','Ledger 가계부':'가계부 입력','Yearly Archive':'연간 기록','FX Rates':'환율','Backup':'백업','Password':'비밀번호','👤 Log in':'👤 로그인','☁️ Synced':'☁️ 동기화됨','↻ Syncing':'↻ 동기화 중','⚠️ Offline':'⚠️ 오프라인',
+'Reset Year':'연도 초기화','Whole Year':'전체','Jan':'1월','Feb':'2월','Mar':'3월','Apr':'4월','May':'5월','Jun':'6월','Jul':'7월','Aug':'8월','Sep':'9월','Oct':'10월','Nov':'11월','Dec':'12월',
+'Total Earnings':'총 수입','Total Expenses':'총 지출','Net Cash Flow':'순현금흐름','Budget Health':'예산 상태','No budgets set':'예산 미설정','Over budget':'예산 초과','Near limit':'한도 근접','On track':'양호',
+'Category Breakdown':'카테고리별 분석','expense':'지출','income':'수입','No data for this period':'이 기간에 데이터가 없습니다','Monthly Money Flow':'월별 자금 흐름',
+'Total balance at each month-end (':'월말 총 잔액 (',"); bars show each month's net":'); 막대는 월별 순증감','Now':'현재','since Jan 1':'1월 1일 이후','Net':'순',
+'Budget Caps':'예산 한도','(monthly cap × 12)':'(월 한도 × 12)','Set caps in Ledger → Category Manager.':'가계부 입력 → 카테고리 관리에서 한도를 설정하세요.',
+'Accounts & Cards (통장 & 카드)':'통장 & 카드','+ Add Account':'+ 계좌 추가','Add Account':'계좌 추가','Delete':'삭제','Del':'삭제','Edit':'수정','Bank Account':'통장','Card':'카드','Name':'이름','Type':'유형','Starting balance':'시작 잔액','Save':'저장','Cancel':'취소','Confirm Reset':'초기화 확인','Delete account':'계좌 삭제',
+'This removes the account and its':'이 계좌와 올해의','transaction(s) this year. Current balance:':'건의 거래가 삭제됩니다. 현재 잔액:','. This cannot be undone.':'. 되돌릴 수 없습니다.',
+'This archives':'이 작업은','totals, sets each account\'s starting balance to its Dec 31 ending balance, clears the ledger, and moves to':'연간 합계를 보관하고, 각 계좌의 시작 잔액을 12월 31일 기준 잔액으로 바꾸고, 장부를 비운 뒤','. This cannot be undone (export a backup first).':'(으)로 이동합니다. 되돌릴 수 없습니다 (먼저 백업하세요).',
+'Quick Entry':'빠른 입력','Edit Entry':'항목 수정','Date':'날짜','Expense':'지출','Income':'수입','Category':'카테고리','Account':'계좌','Amount':'금액','Recurring (monthly)':'정기 (매월)','Recurring':'정기','Memo':'메모','Add':'추가','Update':'수정 완료',
+"↻ Log this month's recurring bills":'↻ 이번 달 정기 지출 기록','Category Manager (예산 설정)':'카테고리 관리 (예산 설정)','in':'수입','out':'지출','In':'수입','Out':'지출','New category':'새 카테고리','Monthly cap':'월 한도',
+'History (':'내역 (','All months':'전체 월','All types':'전체 유형','All accounts':'전체 계좌','All currencies':'전체 통화','No transactions yet':'아직 거래가 없습니다','Delete this transaction?':'이 거래를 삭제할까요?',
+'Add an account on the Dashboard first (+ Add Account), then you can enter transactions.':'먼저 대시보드에서 계좌를 추가하세요 (+ 계좌 추가). 그 후 거래를 입력할 수 있습니다.','Current month is outside the active year.':'이번 달은 현재 연도에 속하지 않습니다.',
+'Salary':'급여','Allowance':'용돈','Other Income':'기타 수입','Food':'식비','Transport':'교통','Housing':'주거','Shopping':'쇼핑','Leisure':'여가','Other':'기타',
+'Yearly Summary Log':'연간 요약 기록','Year':'연도','Earnings':'수입','Expenses':'지출','Net Savings':'순저축','Cur':'통화','No archived years yet':'보관된 연도가 없습니다','Save year':'연도 저장','Year-over-Year ·':'연도 비교 ·','vs':'vs','variance':'차이','Add or archive a previous year to compare.':'비교하려면 이전 연도를 추가하거나 보관하세요.',
+'Exchange Rates (₩ per 1 unit)':'환율 (1단위당 ₩)','Rates are set manually. Transactions keep their native currency; only displays convert.':'환율은 직접 설정합니다. 거래는 원래 통화로 저장되며 표시만 환산됩니다.',
+'Backup / Restore':'백업 / 복원','Copy this JSON to export. To import, paste a backup below and press Import.':'내보내려면 이 JSON을 복사하세요. 가져오려면 아래에 백업을 붙여넣고 가져오기를 누르세요.','Copy':'복사','Import':'가져오기','Invalid backup JSON':'올바르지 않은 백업 JSON입니다',
+'Set a password':'비밀번호 설정','Change or remove password':'비밀번호 변경 또는 삭제','Lock screen':'잠금 화면','On. Asks for your password when opening. To turn off, type your current password below first.':'켜짐. 앱을 열 때 비밀번호를 묻습니다. 끄려면 먼저 아래에 현재 비밀번호를 입력하세요.','Off. The app opens without a password.':'꺼짐. 비밀번호 없이 앱이 열립니다.',
+'Current password':'현재 비밀번호','New password (6+ characters: letters, numbers, symbols)':'새 비밀번호 (6자 이상: 문자, 숫자, 기호)','Confirm new password':'새 비밀번호 확인','Show characters':'문자 표시','Save password':'비밀번호 저장','Remove password':'비밀번호 삭제',
+"The password locks the app screen. If you forget it, the only way in is clearing the app's site data, which erases your budget, so keep a Backup.":'비밀번호는 앱 화면을 잠급니다. 잊어버리면 앱의 사이트 데이터를 지우는 방법뿐이며 가계부 데이터가 삭제되니 백업을 보관하세요.',
+'Current password is wrong':'현재 비밀번호가 틀렸습니다','Use at least 6 characters':'6자 이상 입력하세요',"Passwords don't match":'비밀번호가 일치하지 않습니다','Enter your current password below to turn the lock off':'잠금을 끄려면 아래에 현재 비밀번호를 입력하세요',
+'My Account':'내 계정','Signed in as':'로그인 계정:','Status:':'상태:','✓ Synced':'✓ 동기화됨','Syncing…':'동기화 중…','⚠ Offline, will retry':'⚠ 오프라인, 다시 시도합니다','Not syncing':'동기화 안 함','Sync now':'지금 동기화','Log out':'로그아웃',
+'Your budget syncs automatically after each change. Logging out keeps the data on this device but stops syncing.':'변경할 때마다 자동으로 동기화됩니다. 로그아웃해도 이 기기의 데이터는 남지만 동기화는 중지됩니다.',
+'Email':'이메일','Account password (6+ characters)':'계정 비밀번호 (6자 이상)','Log in':'로그인','Create account':'계정 만들기','Use the same account on every device to see the same budget. This is separate from the app lock password.':'모든 기기에서 같은 계정을 쓰면 같은 가계부가 보입니다. 앱 잠금 비밀번호와는 별개입니다.',
+'Enter a valid email and a password of 6+ characters':'올바른 이메일과 6자 이상의 비밀번호를 입력하세요','Account created. Check your email to confirm it, then log in.':'계정이 만들어졌습니다. 이메일에서 확인한 뒤 로그인하세요.','No connection. Try again when online.':'연결되지 않았습니다. 온라인일 때 다시 시도하세요.',
+"Your account already has saved data.\n\nOK = use the account's data (replaces this device).\nCancel = upload this device's data (replaces the account's data).":'계정에 이미 저장된 데이터가 있습니다.\n\n확인 = 계정 데이터 사용 (이 기기의 데이터를 대체)\n취소 = 이 기기의 데이터 업로드 (계정 데이터를 대체)',
+'Private Ledger':'프라이빗 가계부','Show':'보기','Hide':'숨기기','Incorrect password':'비밀번호가 틀렸습니다','UNLOCK':'잠금 해제'};
+const RX=[[/^You spent (.+) \((.+)%\) (less|more) than in (\d+)$/,m=>m[4]+'년보다 '+m[1]+' ('+m[2]+'%) '+(m[3]==='less'?'덜':'더')+' 썼어요'],[/^Delete (.+)\?$/,m=>m[1]+' 계좌를 삭제할까요?'],[/^Reset Year (\d+)$/,m=>m[1]+'년 초기화']];
+const trs=s=>{const m=s.match(/^(\s*)([\s\S]*?)(\s*)$/),c=m[2];if(!c)return s;let o=KO[c];if(o===undefined)for(const [r,f] of RX){const x=c.match(r);if(x){o=f(x);break}}return o===undefined?s:m[1]+o+m[3]};
+const TN=new WeakMap();
+function doAttrs(n){for(const a of ['placeholder','title']){if(!n.hasAttribute||!n.hasAttribute(a))continue;const k='data-o-'+a,cur=n.getAttribute(a),o=n.getAttribute(k);
+ if(LANG==='ko'){if(o!==null&&cur===trs(o))continue;const out=trs(cur);if(out!==cur){n.setAttribute(k,cur);n.setAttribute(a,out)}else if(o!==null)n.removeAttribute(k)}
+ else if(o!==null){if(cur===trs(o))n.setAttribute(a,o);n.removeAttribute(k)}}}
+function doNode(n){
+ if(n.nodeType===3){const t=TN.get(n);
+  if(t&&n.nodeValue===t.out){if(LANG!=='ko'){n.nodeValue=t.src;TN.delete(n)}return}
+  if(t)TN.delete(n);
+  if(LANG==='ko'){const out=trs(n.nodeValue);if(out!==n.nodeValue){TN.set(n,{src:n.nodeValue,out});n.nodeValue=out}}}
+ else if(n.nodeType===1){const tg=n.tagName;if(tg==='SCRIPT'||tg==='STYLE'||tg==='TEXTAREA')return;doAttrs(n);n.childNodes.forEach(doNode)}}
+{const _al=window.alert.bind(window),_cf=window.confirm.bind(window);window.alert=m=>_al(LANG==='ko'?trs(String(m)):m);window.confirm=m=>_cf(LANG==='ko'?trs(String(m)):m)}
 const SB='https://fctxdugofgcmcopxiqnx.supabase.co',SBK='sb_publishable_mKfjJosrlIOpHiZprDI_uA_IoRPBF6J';
 const SESS='gagyebu-sess',TS='gagyebu-ts',SYN='gagyebu-synced';
 const lget=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
@@ -295,7 +338,7 @@ function Account({sess,sync,onAuth,onOut,onSync,onClose}){
   catch(e){setMsg('No connection. Try again when online.')}
   setBusy(false)};
  const label={synced:'✓ Synced',syncing:'Syncing…',offline:'⚠ Offline, will retry',off:'Not syncing'}[sync]||'';
- return(<Modal title="Account" onClose={onClose}>{sess?<div className="space-y-3">
+ return(<Modal title="My Account" onClose={onClose}>{sess?<div className="space-y-3">
   <p className="text-sm text-slate-600">Signed in as <b className="text-slate-900">{sess.email}</b></p>
   <p className="text-sm text-slate-600">Status: {label}</p>
   <button className={pri+' w-full'} onClick={onSync}>Sync now</button>
@@ -350,4 +393,6 @@ function Root(){
   </div></form>);
  return <App pin={h} setPin={setPin} lockOn={on} setLock={setLock}/>}
 ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
+document.documentElement.lang=LANG;
+new MutationObserver(ms=>{for(const m of ms){if(m.type==='childList')m.addedNodes.forEach(doNode);else if(m.type==='characterData')doNode(m.target);else doAttrs(m.target)}}).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','title']});
 </script><script>if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script></body></html>
