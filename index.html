@@ -228,8 +228,28 @@ function Archive({s,setS}){
     <rect x="240" y="4" width="8" height="8" fill="#94a3b8"/><text x="252" y="12" fontSize="10" fill="#64748b">{prev.year}</text><rect x="295" y="4" width="8" height="8" fill="#0ea5e9"/><text x="307" y="12" fontSize="10" fill="#64748b">{s.year}</text></svg></>}</div></div>)}
 
 function App({pin,setPin,lockOn,setLock}){
- const [s,setS]=useState(load);const [pk,setPk]=useState(false);const [tab,setTab]=useState('dash');const [fx,setFx]=useState(false);const [bk,setBk]=useState(false);const [txt,setTxt]=useState('');
- useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}},[s]);
+ const [s,setS]=useState(load);const [pk,setPk]=useState(false);const [ac,setAc]=useState(false);const [sess,setSess]=useState(readSess);const [sync,setSync]=useState(readSess()?'syncing':'off');
+ const skip=React.useRef(true),sRef=React.useRef(s),tmr=React.useRef(null);sRef.current=s;const [tab,setTab]=useState('dash');const [fx,setFx]=useState(false);const [bk,setBk]=useState(false);const [txt,setTxt]=useState('');
+ useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}
+  if(skip.current){skip.current=false;return}
+  lset(TS,String(Date.now()));
+  if(readSess()){clearTimeout(tmr.current);tmr.current=setTimeout(()=>doSync(),1500)}},[s]);
+ const doSync=async()=>{
+  let ss;try{ss=await freshSess()}catch(e){return setSync('offline')}
+  if(!ss){setSess(null);return setSync('off')}
+  setSync('syncing');
+  try{
+   const r=await getRow(ss);if(!r.ok)throw new Error('get');
+   const row=Array.isArray(r.j)?r.j[0]:null;const cur=sRef.current;const lts=+lget(TS)||0;const first=lget(SYN)!==ss.uid;let dir='';
+   if(!row)dir='push';
+   else{const rts=row.data._ts||0;const hasLocal=cur.tx.length||cur.archive.length;
+    if(first&&hasLocal)dir=confirm("Your account already has saved data.\n\nOK = use the account's data (replaces this device).\nCancel = upload this device's data (replaces the account's data).")?'pull':'push';
+    else dir=rts>lts?'pull':lts>rts?'push':''}
+   if(dir==='pull'){const {_ts,...d}=row.data;skip.current=true;setS({...DEF(),...d});lset(TS,String(_ts||0))}
+   if(dir==='push'){const t=(!row||first)?Date.now():(lts||Date.now());lset(TS,String(t));const w=await putRow(ss,{...cur,_ts:t});if(!w.ok)throw new Error('put')}
+   lset(SYN,ss.uid);setSync('synced');
+  }catch(e){setSync('offline')}};
+ useEffect(()=>{if(!sess)return;doSync();const f=()=>{if(!document.hidden)doSync()};document.addEventListener('visibilitychange',f);addEventListener('online',doSync);return()=>{document.removeEventListener('visibilitychange',f);removeEventListener('online',doSync)}},[sess&&sess.uid]);
  const T=[['dash','Dashboard'],['led','Ledger 가계부'],['arc','Yearly Archive']];
  const imp=()=>{try{const r=JSON.parse(txt);if(!r.accounts||!r.tx||!r.rates)throw 0;setS({...DEF(),...r});setBk(false)}catch(e){alert('Invalid backup JSON')}};
  return(<div><header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2">
@@ -239,8 +259,10 @@ function App({pin,setPin,lockOn,setLock}){
    <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">{CK.map(c=><button key={c} onClick={()=>setS({...s,base:c})} className={'px-2.5 py-1 '+(s.base===c?'bg-sky-600 text-white':'bg-white text-slate-600')}>{c}</button>)}</div>
    <button className={sec} onClick={()=>setFx(true)}>FX Rates</button>
    <button className={sec} onClick={()=>{setTxt(JSON.stringify(s,null,1));setBk(true)}}>Backup</button>
-   <button className={sec} onClick={()=>setPk(true)}>{pin&&lockOn?'🔒':'🔓'} Password</button></div></div></header>
+   <button className={sec} onClick={()=>setPk(true)}>{pin&&lockOn?'🔒':'🔓'} Password</button>
+   <button className={sec} onClick={()=>setAc(true)}>{sess?({synced:'☁️ Synced',syncing:'↻ Syncing',offline:'⚠️ Offline'}[sync]||'☁️'):'👤 Log in'}</button></div></div></header>
   <main className="mx-auto max-w-6xl p-4">{tab==='dash'?<Dashboard s={s} setS={setS}/>:tab==='led'?<Ledger s={s} setS={setS}/>:<Archive s={s} setS={setS}/>}</main>
+  {ac&&<Account sess={sess} sync={sync} onAuth={n=>{setSess(n);setSync('syncing');setAc(false)}} onOut={()=>{lset(SESS,null);setSess(null);setSync('off');setAc(false)}} onSync={doSync} onClose={()=>setAc(false)}/>}
   {pk&&<PinSettings pin={pin} setPin={setPin} lockOn={lockOn} setLock={setLock} onClose={()=>setPk(false)}/>}
   {fx&&<Modal title="Exchange Rates (₩ per 1 unit)" onClose={()=>setFx(false)}><div className="space-y-3">
    {['MYR','USD'].map(c=><Field key={c} l={'1 '+c+' = ₩'}><input type="number" step="any" min="0" className={inp+' n'} value={s.rates[c]} onChange={e=>setS({...s,rates:{...s.rates,[c]:+e.target.value||s.rates[c]}})}/></Field>)}
@@ -249,6 +271,42 @@ function App({pin,setPin,lockOn,setLock}){
    <textarea className={inp+' h-56 font-mono text-xs'} value={txt} onChange={e=>setTxt(e.target.value)}/>
    <div className="mt-3 flex gap-2"><button className={sec+' flex-1'} onClick={()=>{try{navigator.clipboard.writeText(txt)}catch(e){}}}>Copy</button><button className={pri+' flex-1'} onClick={imp}>Import</button></div></Modal>}
  </div>)}
+const SB='https://fctxdugofgcmcopxiqnx.supabase.co',SBK='sb_publishable_mKfjJosrlIOpHiZprDI_uA_IoRPBF6J';
+const SESS='gagyebu-sess',TS='gagyebu-ts',SYN='gagyebu-synced';
+const lget=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const lset=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}};
+async function sb(path,o={}){const r=await fetch(SB+path,{method:o.method||'GET',headers:{apikey:SBK,'Content-Type':'application/json',...(o.token?{Authorization:'Bearer '+o.token}:{}),...(o.h||{})},body:o.body?JSON.stringify(o.body):undefined});let j=null;try{j=await r.json()}catch(e){}return{ok:r.ok,status:r.status,j}}
+const toSess=j=>({at:j.access_token,rt:j.refresh_token,exp:Date.now()+(j.expires_in||3600)*1000,uid:j.user.id,email:j.user.email});
+const readSess=()=>{try{return JSON.parse(lget(SESS))}catch(e){return null}};
+async function freshSess(){const s=readSess();if(!s)return null;if(s.exp>Date.now()+60000)return s;
+ const r=await sb('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:s.rt}});
+ if(r.ok&&r.j&&r.j.access_token){const n=toSess(r.j);lset(SESS,JSON.stringify(n));return n}
+ if(r.status===400||r.status===401){lset(SESS,null);return null}
+ throw new Error('refresh')}
+const getRow=ss=>sb('/rest/v1/budgets?select=data&user_id=eq.'+ss.uid,{token:ss.at});
+const putRow=(ss,data)=>sb('/rest/v1/budgets',{method:'POST',token:ss.at,h:{Prefer:'resolution=merge-duplicates,return=minimal'},body:{user_id:ss.uid,data,updated_at:new Date().toISOString()}});
+function Account({sess,sync,onAuth,onOut,onSync,onClose}){
+ const [em,setEm]=useState('');const [pw,setPw]=useState('');const [msg,setMsg]=useState('');const [busy,setBusy]=useState(false);
+ const go=async mode=>{setMsg('');if(!em.includes('@')||pw.length<6)return setMsg('Enter a valid email and a password of 6+ characters');setBusy(true);
+  try{const r=mode==='in'?await sb('/auth/v1/token?grant_type=password',{method:'POST',body:{email:em.trim(),password:pw}}):await sb('/auth/v1/signup',{method:'POST',body:{email:em.trim(),password:pw}});
+   if(r.ok&&r.j&&r.j.access_token){const n=toSess(r.j);lset(SESS,JSON.stringify(n));onAuth(n)}
+   else if(r.ok)setMsg('Account created. Check your email to confirm it, then log in.');
+   else setMsg((r.j&&(r.j.msg||r.j.error_description||r.j.message))||'Something went wrong')}
+  catch(e){setMsg('No connection. Try again when online.')}
+  setBusy(false)};
+ const label={synced:'✓ Synced',syncing:'Syncing…',offline:'⚠ Offline, will retry',off:'Not syncing'}[sync]||'';
+ return(<Modal title="Account" onClose={onClose}>{sess?<div className="space-y-3">
+  <p className="text-sm text-slate-600">Signed in as <b className="text-slate-900">{sess.email}</b></p>
+  <p className="text-sm text-slate-600">Status: {label}</p>
+  <button className={pri+' w-full'} onClick={onSync}>Sync now</button>
+  <button className={sec+' w-full'} onClick={onOut}>Log out</button>
+  <p className="text-xs text-slate-500">Your budget syncs automatically after each change. Logging out keeps the data on this device but stops syncing.</p></div>
+  :<div className="space-y-3">
+  <Field l="Email"><input type="email" autoComplete="email" className={inp} value={em} onChange={ev=>setEm(ev.target.value)}/></Field>
+  <Field l="Account password (6+ characters)"><input type="password" autoComplete="current-password" className={inp} value={pw} onChange={ev=>setPw(ev.target.value)}/></Field>
+  {msg&&<p className="text-sm text-red-600">{msg}</p>}
+  <div className="flex gap-2"><button disabled={busy} className={pri+' flex-1'} onClick={()=>go('in')}>Log in</button><button disabled={busy} className={sec+' flex-1'} onClick={()=>go('up')}>Create account</button></div>
+  <p className="text-xs text-slate-500">Use the same account on every device to see the same budget. This is separate from the app lock password.</p></div>}</Modal>)}
 const PK='gagyebu-pin';
 async function hp(pin){try{if(crypto.subtle){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('gagyebu:'+pin));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}}catch(e){}return 'p:'+pin}
 function PinSettings({pin,setPin,lockOn,setLock,onClose}){
