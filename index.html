@@ -228,7 +228,7 @@ function Archive({s,setS}){
     <text x={x+42} y="168" textAnchor="middle" fontSize="11" fill="#64748b">{l}</text></g>})}
     <rect x="240" y="4" width="8" height="8" fill="#94a3b8"/><text x="252" y="12" fontSize="10" fill="#64748b">{prev.year}</text><rect x="295" y="4" width="8" height="8" fill="#0ea5e9"/><text x="307" y="12" fontSize="10" fill="#64748b">{s.year}</text></svg></>}</div></div>)}
 
-function App({pin,setPin,lockOn,setLock}){
+function App({pin,setPin,lockOn,setLock,bio,setBio}){
  const [s,setS]=useState(load);const [pk,setPk]=useState(false);const [ac,setAc]=useState(false);const [lang,setLang]=useState(LANG);const [sess,setSess]=useState(readSess);const [sync,setSync]=useState(readSess()?'syncing':'off');
  const skip=React.useRef(true),sRef=React.useRef(s),tmr=React.useRef(null);sRef.current=s;const [tab,setTab]=useState('dash');const [fx,setFx]=useState(false);const [bk,setBk]=useState(false);const [txt,setTxt]=useState('');
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}
@@ -265,7 +265,7 @@ function App({pin,setPin,lockOn,setLock}){
    <button className={sec} title="Language / 언어" onClick={()=>{LANG=LANG==='ko'?'en':'ko';try{localStorage.setItem('gagyebu-lang',LANG)}catch(e){}document.documentElement.lang=LANG;setLang(LANG);setTimeout(()=>doNode(document.body),0)}}>🌐 {lang==='ko'?'한':'EN'}</button></div></div></header>
   <main className="mx-auto max-w-6xl p-4">{tab==='dash'?<Dashboard s={s} setS={setS}/>:tab==='led'?<Ledger s={s} setS={setS}/>:<Archive s={s} setS={setS}/>}</main>
   {ac&&<Account sess={sess} sync={sync} onAuth={n=>{setSess(n);setSync('syncing');setAc(false)}} onOut={()=>{lset(SESS,null);setSess(null);setSync('off');setAc(false)}} onSync={doSync} onClose={()=>setAc(false)}/>}
-  {pk&&<PinSettings pin={pin} setPin={setPin} lockOn={lockOn} setLock={setLock} onClose={()=>setPk(false)}/>}
+  {pk&&<PinSettings pin={pin} setPin={setPin} lockOn={lockOn} setLock={setLock} bio={bio} setBio={setBio} onClose={()=>setPk(false)}/>}
   {fx&&<Modal title="Exchange Rates (₩ per 1 unit)" onClose={()=>setFx(false)}><div className="space-y-3">
    {['MYR','USD'].map(c=><Field key={c} l={'1 '+c+' = ₩'}><input type="number" step="any" min="0" className={inp+' n'} value={s.rates[c]} onChange={e=>setS({...s,rates:{...s.rates,[c]:+e.target.value||s.rates[c]}})}/></Field>)}
    <p className="text-xs text-slate-500">Rates are set manually. Transactions keep their native currency; only displays convert.</p></div></Modal>}
@@ -300,7 +300,7 @@ const KO={'Dashboard':'대시보드','Ledger 가계부':'가계부 입력','Year
 'Email':'이메일','Account password (6+ characters)':'계정 비밀번호 (6자 이상)','Log in':'로그인','Create account':'계정 만들기','Use the same account on every device to see the same budget. This is separate from the app lock password.':'모든 기기에서 같은 계정을 쓰면 같은 가계부가 보입니다. 앱 잠금 비밀번호와는 별개입니다.',
 'Enter a valid email and a password of 6+ characters':'올바른 이메일과 6자 이상의 비밀번호를 입력하세요','Account created. Check your email to confirm it, then log in.':'계정이 만들어졌습니다. 이메일에서 확인한 뒤 로그인하세요.','No connection. Try again when online.':'연결되지 않았습니다. 온라인일 때 다시 시도하세요.',
 "Your account already has saved data.\n\nOK = use the account's data (replaces this device).\nCancel = upload this device's data (replaces the account's data).":'계정에 이미 저장된 데이터가 있습니다.\n\n확인 = 계정 데이터 사용 (이 기기의 데이터를 대체)\n취소 = 이 기기의 데이터 업로드 (계정 데이터를 대체)',
-'Private Ledger':'프라이빗 가계부','Show':'보기','Hide':'숨기기','Incorrect password':'비밀번호가 틀렸습니다','UNLOCK':'잠금 해제'};
+'Fingerprint / Face unlock':'지문 / 얼굴 잠금 해제','On. Unlock with your device fingerprint or face. The password still works. To turn off, type your current password below first.':'켜짐. 기기의 지문 또는 얼굴로 잠금을 해제합니다. 비밀번호도 계속 사용할 수 있습니다. 끄려면 먼저 아래에 현재 비밀번호를 입력하세요.','Off. Turn on to unlock with your fingerprint or face.':'꺼짐. 켜면 지문이나 얼굴로 잠금을 해제할 수 있습니다.','Enter your current password below to turn it off':'끄려면 아래에 현재 비밀번호를 입력하세요','Could not set up fingerprint on this device':'이 기기에서 지문을 설정할 수 없습니다','🔐 Use fingerprint':'🔐 지문으로 잠금 해제','Private Ledger':'프라이빗 가계부','Show':'보기','Hide':'숨기기','Incorrect password':'비밀번호가 틀렸습니다','UNLOCK':'잠금 해제'};
 const RX=[[/^You spent (.+) \((.+)%\) (less|more) than in (\d+)$/,m=>m[4]+'년보다 '+m[1]+' ('+m[2]+'%) '+(m[3]==='less'?'덜':'더')+' 썼어요'],[/^Delete (.+)\?$/,m=>m[1]+' 계좌를 삭제할까요?'],[/^Reset Year (\d+)$/,m=>m[1]+'년 초기화']];
 const trs=s=>{const m=s.match(/^(\s*)([\s\S]*?)(\s*)$/),c=m[2];if(!c)return s;let o=KO[c];if(o===undefined)for(const [r,f] of RX){const x=c.match(r);if(x){o=f(x);break}}return o===undefined?s:m[1]+o+m[3]};
 const TN=new WeakMap();
@@ -314,6 +314,10 @@ function doNode(n){
   if(LANG==='ko'){const out=trs(n.nodeValue);if(out!==n.nodeValue){TN.set(n,{src:n.nodeValue,out});n.nodeValue=out}}}
  else if(n.nodeType===1){const tg=n.tagName;if(tg==='SCRIPT'||tg==='STYLE'||tg==='TEXTAREA')return;doAttrs(n);n.childNodes.forEach(doNode)}}
 {const _al=window.alert.bind(window),_cf=window.confirm.bind(window);window.alert=m=>_al(LANG==='ko'?trs(String(m)):m);window.confirm=m=>_cf(LANG==='ko'?trs(String(m)):m)}
+const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b))),unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const bioOk=()=>!!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);
+async function bioReg(){const c=await navigator.credentials.create({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),rp:{name:'가계부'},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:'user',displayName:'가계부'},pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},timeout:60000}});return b64(c.rawId)}
+async function bioAuth(id){await navigator.credentials.get({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),allowCredentials:[{type:'public-key',id:unb64(id)}],userVerification:'required',timeout:60000}});return true}
 const SB='https://fctxdugofgcmcopxiqnx.supabase.co',SBK='sb_publishable_mKfjJosrlIOpHiZprDI_uA_IoRPBF6J';
 const SESS='gagyebu-sess',TS='gagyebu-ts',SYN='gagyebu-synced';
 const lget=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
@@ -352,16 +356,19 @@ function Account({sess,sync,onAuth,onOut,onSync,onClose}){
   <p className="text-xs text-slate-500">Use the same account on every device to see the same budget. This is separate from the app lock password.</p></div>}</Modal>)}
 const PK='gagyebu-pin';
 async function hp(pin){try{if(crypto.subtle){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('gagyebu:'+pin));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}}catch(e){}return 'p:'+pin}
-function PinSettings({pin,setPin,lockOn,setLock,onClose}){
+function PinSettings({pin,setPin,lockOn,setLock,bio,setBio,onClose}){
  const [c,setC]=useState('');const [n,setN]=useState('');const [n2,setN2]=useState('');const [err,setErr]=useState('');const [sh,setSh]=useState(false);
  const chk=async()=>!pin||(await hp(c))===pin;
  const save=async()=>{if(!(await chk()))return setErr('Current password is wrong');if(n.length<6)return setErr('Use at least 6 characters');if(n!==n2)return setErr("Passwords don't match");setPin(await hp(n));onClose()};
  const rem=async()=>{if(!(await chk()))return setErr('Current password is wrong');setPin(null);onClose()};
  const tog=async()=>{if(lockOn){if(!(await chk()))return setErr('Enter your current password below to turn the lock off');setLock(false)}else setLock(true);onClose()};
+ const bt=async()=>{if(bio){if(!(await chk()))return setErr('Enter your current password below to turn it off');setBio(null);onClose()}else{try{setBio(await bioReg());onClose()}catch(e){setErr('Could not set up fingerprint on this device')}}};
  const pw=(v,f)=><input type={sh?'text':'password'} autoComplete="off" autoCapitalize="off" spellCheck="false" maxLength="64" className={inp} value={v} onChange={ev=>f(ev.target.value)}/>;
  return(<Modal title={pin?'Change or remove password':'Set a password'} onClose={onClose}><div className="space-y-3">
   {pin&&<div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3"><div><p className="text-sm font-medium text-slate-800">Lock screen</p><p className="text-xs text-slate-500">{lockOn?'On. Asks for your password when opening. To turn off, type your current password below first.':'Off. The app opens without a password.'}</p></div>
    <button type="button" onClick={tog} className={'h-6 w-11 shrink-0 rounded-full p-0.5 transition '+(lockOn?'bg-emerald-500':'bg-slate-300')}><span className={'block h-5 w-5 rounded-full bg-white shadow transition '+(lockOn?'translate-x-5':'')}/></button></div>}
+  {pin&&bioOk()&&<div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3"><div><p className="text-sm font-medium text-slate-800">Fingerprint / Face unlock</p><p className="text-xs text-slate-500">{bio?'On. Unlock with your device fingerprint or face. The password still works. To turn off, type your current password below first.':'Off. Turn on to unlock with your fingerprint or face.'}</p></div>
+   <button type="button" onClick={bt} className={'h-6 w-11 shrink-0 rounded-full p-0.5 transition '+(bio?'bg-emerald-500':'bg-slate-300')}><span className={'block h-5 w-5 rounded-full bg-white shadow transition '+(bio?'translate-x-5':'')}/></button></div>}
   {pin&&<Field l="Current password">{pw(c,setC)}</Field>}
   <Field l="New password (6+ characters: letters, numbers, symbols)">{pw(n,setN)}</Field><Field l="Confirm new password">{pw(n2,setN2)}</Field>
   <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={sh} onChange={ev=>setSh(ev.target.checked)}/> Show characters</label>
@@ -372,11 +379,14 @@ function PinSettings({pin,setPin,lockOn,setLock,onClose}){
 function Root(){
  const [h,setH]=useState(()=>{try{return localStorage.getItem(PK)}catch(e){return null}});
  const [open,setOpen]=useState(!h);const [p,setP]=useState('');const [bad,setBad]=useState(false);const [show,setShow]=useState(false);
+ const [bio,setBio]=useState(()=>lget('gagyebu-bio'));const setBioS=v=>{lset('gagyebu-bio',v);setBio(v)};
  const [on,setOn]=useState(()=>{try{return localStorage.getItem('gagyebu-lock')!=='off'}catch(e){return true}});
  const last=React.useRef(0);
  useEffect(()=>{const f=()=>{if(document.hidden)last.current=Date.now();else if(h&&on&&Date.now()-last.current>30000)setOpen(false)};document.addEventListener('visibilitychange',f);return()=>document.removeEventListener('visibilitychange',f)},[h,on]);
  const setLock=v=>{try{localStorage.setItem('gagyebu-lock',v?'on':'off')}catch(e){}setOn(v);setOpen(true)};
- const setPin=v=>{try{v?localStorage.setItem(PK,v):localStorage.removeItem(PK)}catch(e){}setH(v);if(v)setLock(true);setOpen(true)};
+ const setPin=v=>{try{v?localStorage.setItem(PK,v):localStorage.removeItem(PK)}catch(e){}setH(v);if(!v)setBioS(null);if(v)setLock(true);setOpen(true)};
+ const tryBio=async()=>{try{await bioAuth(bio);setOpen(true);setP('');setBad(false)}catch(e){}};
+ useEffect(()=>{if(h&&on&&!open&&bio&&bioOk())tryBio()},[h,on,open,bio]);
  const tryU=async v=>{if((await hp(v))===h){setOpen(true);setP('');setBad(false)}else{setBad(true);setP('')}};
  if(h&&on&&!open)return(<form onSubmit={ev=>{ev.preventDefault();tryU(p)}} className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-6 text-white" style={{background:'radial-gradient(ellipse at 20% 10%,#1e293b 0%,#0b1120 55%,#05070d 100%)'}}>
   <div className="pointer-events-none absolute -left-24 -top-32 h-96 w-96 rounded-full bg-sky-500/20 blur-3xl"/>
@@ -390,8 +400,9 @@ function Root(){
     <button type="button" onClick={()=>setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] uppercase tracking-wider text-slate-400 hover:text-amber-200">{show?'Hide':'Show'}</button></div>
    <p className="mt-3 h-5 text-sm text-red-400">{bad?'Incorrect password':''}</p>
    <button className="mt-2 w-full rounded-xl py-3 text-sm font-semibold tracking-widest text-slate-900 shadow-lg transition hover:brightness-110" style={{background:'linear-gradient(135deg,#f5e6b8,#d4af37 55%,#a67c1a)'}}>UNLOCK</button>
+   {bio&&bioOk()&&<button type="button" onClick={tryBio} className="mt-3 w-full rounded-xl border border-white/15 py-3 text-sm text-slate-200 hover:bg-white/10">🔐 Use fingerprint</button>}
   </div></form>);
- return <App pin={h} setPin={setPin} lockOn={on} setLock={setLock}/>}
+ return <App pin={h} setPin={setPin} lockOn={on} setLock={setLock} bio={bio} setBio={setBioS}/>}
 ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
 document.documentElement.lang=LANG;
 new MutationObserver(ms=>{for(const m of ms){if(m.type==='childList')m.addedNodes.forEach(doNode);else if(m.type==='characterData')doNode(m.target);else doAttrs(m.target)}}).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','title']});
